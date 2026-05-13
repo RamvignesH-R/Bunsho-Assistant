@@ -4,9 +4,10 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
 
-BACKEND_URL = "http://localhost:9000"
+# =========================================================
+# PAGE CONFIG — must be the very first Streamlit call
+# =========================================================
 
 st.set_page_config(
     page_title="FlowScribe Enterprise",
@@ -14,7 +15,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# =========================================================
+# AUTO-REFRESH — must come after set_page_config
+# =========================================================
+
+from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=3000, key="flowscribe_refresh")
+
+BACKEND_URL = "http://localhost:9000"
 
 # =========================================================
 # STYLING
@@ -139,13 +147,39 @@ def safe_get(endpoint):
             "error": str(e)
         }
 
-def safe_post(endpoint, payload=None):
 
+def safe_post(endpoint, payload=None):
+    """
+    Sends POST with query params (for start_stream/stop_all/keywords).
+    Use safe_post_json for endpoints that expect a JSON body.
+    """
     try:
 
         response = requests.post(
             f"{BACKEND_URL}{endpoint}",
             params=payload,
+            timeout=10
+        )
+
+        return response.json()
+
+    except Exception as e:
+
+        return {
+            "error": str(e)
+        }
+
+
+def safe_post_json(endpoint, payload=None):
+    """
+    Sends POST with JSON body — used for stop_stream, add_keyword,
+    remove_keyword which use Pydantic BaseModel on the backend.
+    """
+    try:
+
+        response = requests.post(
+            f"{BACKEND_URL}{endpoint}",
+            json=payload,
             timeout=10
         )
 
@@ -176,7 +210,7 @@ backend_connected = health.get("status") == "online"
 # HEADER
 # =========================================================
 
-c1, c2 = st.columns([8,2])
+c1, c2 = st.columns([8, 2])
 
 with c1:
 
@@ -312,14 +346,14 @@ with left:
 
     for idx, stream in enumerate(streams):
 
-        c1, c2 = st.columns([5,1])
+        c1, c2 = st.columns([5, 1])
 
         with c1:
 
             st.markdown(f"""
             <div class="stream-card">
                 <b>Stream {idx+1}</b><br><br>
-                {stream.get("url","")}
+                {stream.get("url", "")}
             </div>
             """, unsafe_allow_html=True)
 
@@ -339,7 +373,8 @@ with left:
                 use_container_width=True
             ):
 
-                safe_post(
+                # stop_stream expects JSON body (Pydantic BaseModel)
+                safe_post_json(
                     "/stop_stream",
                     {
                         "url": stream.get("url", "")
@@ -452,7 +487,8 @@ with right:
         use_container_width=True
     ):
 
-        safe_post(
+        # add_keyword expects JSON body (Pydantic BaseModel)
+        safe_post_json(
             "/add_keyword",
             {
                 "keyword": new_keyword
@@ -461,7 +497,7 @@ with right:
 
     for idx, keyword in enumerate(keywords):
 
-        k1, k2 = st.columns([5,1])
+        k1, k2 = st.columns([5, 1])
 
         with k1:
 
@@ -478,7 +514,8 @@ with right:
                 use_container_width=True
             ):
 
-                safe_post(
+                # remove_keyword expects JSON body (Pydantic BaseModel)
+                safe_post_json(
                     "/remove_keyword",
                     {
                         "keyword": keyword

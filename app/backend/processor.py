@@ -37,7 +37,24 @@ log_message("Whisper model loaded successfully")
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 
+DIARIZATION_PIPELINE = None
 
+if HF_TOKEN:
+    try:
+        log_message("Loading pyannote diarization pipeline...")
+
+        DIARIZATION_PIPELINE = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            token=HF_TOKEN
+        )
+
+        if DEVICE == "cuda":
+            DIARIZATION_PIPELINE.to(torch.device("cuda"))
+
+        log_message("Pyannote diarization loaded")
+
+    except Exception as e:
+        log_message(f"Failed to load diarization pipeline: {e}")
 
 # =========================================================
 # STREAM PROCESSOR
@@ -164,6 +181,10 @@ class StreamProcessor:
 
                         self.transcript_lines.append(line)
 
+                        # ─── auto-save every 10 lines ───
+                        if len(self.transcript_lines) % 10 == 0:
+                            self._save_transcript()
+
                         lower_text = text.lower()
 
                         for kw in self.keywords:
@@ -199,66 +220,69 @@ class StreamProcessor:
 
         if self.source_type == "youtube":
 
+            # ── iOS client trick bypasses YouTube bot detection
+            # ── on headless servers like HuggingFace Spaces
             yt_cmd = [
                 "yt-dlp",
-                "-f",
-                "bestaudio",
+                "--extractor-args", "youtube:player_client=ios",
+                "--no-check-certificates",
+                "-f", "bestaudio",
                 "--get-url",
                 self.source_url
             ]
 
             try:
 
-                audio_url = subprocess.check_output(
+                result = subprocess.run(
                     yt_cmd,
-                    stderr=subprocess.STDOUT
-                ).decode().strip()
-
-                log_message(
-                    f"Extracted audio URL successfully"
+                    capture_output=True,
+                    text=True,
+                    timeout=30
                 )
 
-            except subprocess.CalledProcessError as e:
+                if result.returncode != 0:
+                    log_message(
+                        f"yt-dlp failed: {result.stderr.strip()}"
+                    )
+                    raise RuntimeError(
+                        f"yt-dlp error: {result.stderr.strip()}"
+                    )
+
+                audio_url = result.stdout.strip()
+
+                if not audio_url:
+                    raise RuntimeError(
+                        "yt-dlp returned empty URL"
+                    )
 
                 log_message(
-                    f"yt-dlp failed: {e.output.decode()}"
+                    "Extracted audio URL successfully"
                 )
 
+            except subprocess.TimeoutExpired:
+
+                log_message("yt-dlp timed out after 30s")
                 raise
-
-            process = (
-                ffmpeg
-                .input(audio_url)
-                .output(
-                    'pipe:',
-                    format='s16le',
-                    acodec='pcm_s16le',
-                    ac=1,
-                    ar=sr
-                )
-                .run_async(
-                    pipe_stdout=True,
-                    pipe_stderr=True
-                )
-            )
 
         else:
 
-            process = (
-                ffmpeg
-                .input(self.source_url)
-                .output(
-                    'pipe:',
-                    format='s16le',
-                    acodec='pcm_s16le',
-                    ac=1,
-                    ar=sr
-                )
-                .run_async(
-                    pipe_stdout=True,
-                    pipe_stderr=True
-                )
+            audio_url = self.source_url
+
+        process = (
+            ffmpeg
+            .input(audio_url)
+            .output(
+                'pipe:',
+                format='s16le',
+                acodec='pcm_s16le',
+                ac=1,
+                ar=sr
             )
+            .run_async(
+                pipe_stdout=True,
+                pipe_stderr=True
+            )
+        )
 
         def generator():
 
@@ -279,6 +303,13 @@ class StreamProcessor:
                 )
 
                 yield audio_np
+
+            # cleanup ffmpeg process
+            try:
+                process.stdout.close()
+                process.wait(timeout=5)
+            except Exception:
+                process.kill()
 
         return generator(), sr
 
@@ -302,7 +333,56 @@ class StreamProcessor:
             if k != kw
         ]
 
-    
+    # =====================================================
+    # DIARIZATION
+    # =====================================================
+
+    def _run_diarization(self):
+
+        if DIARIZATION_PIPELINE is None:
+
+            log_message("Diarization pipeline unavailable")
+
+            return
+
+        if len(self.full_audio) < 16000:
+
+            log_message("Not enough audio for diarization")
+
+            return
+
+        try:
+
+            temp_wav = os.path.join(
+                TRANSCRIPTS_DIR,
+                "temp_audio.wav"
+            )
+
+            sf.write(
+                temp_wav,
+                np.array(self.full_audio),
+                16000
+            )
+
+            diarization = DIARIZATION_PIPELINE(temp_wav)
+
+            speakers = set()
+
+            for _, _, speaker in diarization.itertracks(
+                yield_label=True
+            ):
+                speakers.add(speaker)
+
+            log_message(
+                f"Diarization complete: "
+                f"{len(speakers)} speakers detected"
+            )
+
+            os.remove(temp_wav)
+
+        except Exception as e:
+
+            log_message(f"Diarization failed: {e}")
 
     # =====================================================
     # SAVE TRANSCRIPT
