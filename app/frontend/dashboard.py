@@ -48,6 +48,7 @@ def backend_get(endpoint):
             "error": str(e)
         }
 
+
 def backend_post(endpoint, **kwargs):
 
     try:
@@ -86,10 +87,10 @@ html, body, [class*="css"] {
     max-width: 100%;
 }
 
-/* TITLE */
+/* HEADER */
 
 .main-title {
-    font-size: 42px;
+    font-size: 46px;
     font-weight: 800;
     color: #38bdf8;
     letter-spacing: 1px;
@@ -98,42 +99,37 @@ html, body, [class*="css"] {
 .sub-title {
     color: #94a3b8;
     margin-top: -8px;
-    margin-bottom: 15px;
+    margin-bottom: 18px;
+    font-size: 18px;
 }
-
-/* STATUS */
 
 .status-online {
     color: #22c55e;
     font-weight: 700;
-    font-size: 18px;
+    font-size: 16px;
+    margin-top: 15px;
 }
 
-/* METRIC */
+/* METRICS */
 
 .metric-card {
-    background: linear-gradient(
-        145deg,
-        #0f172a,
-        #111827
-    );
-
+    background: linear-gradient(145deg,#0f172a,#111827);
     border: 1px solid #1e293b;
     border-radius: 18px;
-
-    padding: 20px;
+    padding: 22px;
     min-height: 140px;
 }
 
 .metric-title {
     color: #94a3b8;
     font-size: 14px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .metric-value {
-    font-size: 44px;
+    font-size: 42px;
     font-weight: 800;
+    color: white;
 }
 
 /* PANELS */
@@ -142,102 +138,72 @@ html, body, [class*="css"] {
     background-color: #0f172a;
     border: 1px solid #1e293b;
     border-radius: 18px;
-    padding: 18px;
+    padding: 20px;
 }
 
 /* TRANSCRIPT */
 
 .transcript-box {
-
-    height: 700px;
-
+    height: 720px;
     overflow-y: auto;
-
-    padding-right: 10px;
+    padding-right: 8px;
 }
 
 .transcript-line {
-
     background-color: #111827;
-
     border-left: 4px solid #38bdf8;
-
     margin-bottom: 12px;
-
-    padding: 12px;
-
+    padding: 14px;
     border-radius: 10px;
-
-    line-height: 1.6;
+    line-height: 1.7;
+    font-size: 15px;
 }
 
-/* ALERTS */
+/* ALERT */
 
 .alert-box {
-
     background-color: #3f0d12;
-
     border-left: 4px solid #ef4444;
-
     border-radius: 10px;
-
     padding: 12px;
-
     margin-bottom: 10px;
+    font-size: 14px;
 }
 
 /* STREAM */
 
 .stream-card {
-
     background-color: #111827;
-
     border: 1px solid #1e293b;
-
-    border-radius: 14px;
-
-    padding: 14px;
-
-    margin-bottom: 12px;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
 }
 
 /* KEYWORD */
 
 .keyword-chip {
-
     display: inline-block;
-
     background-color: #1d4ed8;
-
     color: white;
-
     border-radius: 999px;
-
     padding: 6px 14px;
-
-    margin: 5px;
-
+    margin: 4px;
     font-size: 13px;
 }
 
 /* LOG */
 
 .log-entry {
-
     background-color: #111827;
-
     border-left: 4px solid #38bdf8;
-
     padding: 10px;
-
     border-radius: 8px;
-
     margin-bottom: 8px;
-
     font-size: 14px;
 }
 
-/* SIDEBAR HIDE */
+/* HIDE SIDEBAR */
 
 [data-testid="collapsedControl"] {
     display: none;
@@ -247,7 +213,7 @@ html, body, [class*="css"] {
 """, unsafe_allow_html=True)
 
 # =========================================================
-# HEALTH
+# BACKEND DATA
 # =========================================================
 
 health = backend_get("/health")
@@ -264,6 +230,30 @@ stream_count = health.get(
 keyword_count = health.get(
     "keywords",
     0
+)
+
+transcript_data = backend_get("/transcript")
+
+raw_transcript = transcript_data.get(
+    "transcript",
+    ""
+)
+
+if isinstance(raw_transcript, str):
+
+    transcript_lines = [
+        line.strip()
+        for line in raw_transcript.split("\n")
+        if line.strip()
+    ]
+
+else:
+
+    transcript_lines = raw_transcript
+
+alerts = transcript_data.get(
+    "alerts",
+    []
 )
 
 # =========================================================
@@ -297,7 +287,7 @@ with header2:
         """, unsafe_allow_html=True)
 
 # =========================================================
-# TOP METRICS
+# METRICS
 # =========================================================
 
 m1, m2, m3, m4 = st.columns(4)
@@ -332,13 +322,6 @@ with m2:
 
 with m3:
 
-    transcript_data = backend_get("/transcript")
-
-    transcript_lines = transcript_data.get(
-        "transcript",
-        []
-    )
-
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-title">
@@ -353,9 +336,7 @@ with m3:
 
 with m4:
 
-    current_time = datetime.now().strftime(
-        "%H:%M:%S"
-    )
+    current_time = datetime.now().strftime("%H:%M:%S")
 
     st.markdown(f"""
     <div class="metric-card">
@@ -375,7 +356,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 # MAIN LAYOUT
 # =========================================================
 
-left, center, right = st.columns([1.3, 2.8, 1.2])
+left, center, right = st.columns([1.2, 2.8, 1.2])
 
 # =========================================================
 # LEFT PANEL
@@ -383,9 +364,7 @@ left, center, right = st.columns([1.3, 2.8, 1.2])
 
 with left:
 
-    st.markdown("""
-    <div class="panel">
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
 
     st.subheader("📡 Stream Control")
 
@@ -454,13 +433,23 @@ with left:
 
         for idx, stream in enumerate(streams):
 
-            colA, colB = st.columns([5,1])
+            st.markdown(
+                f"""
+                <div class="stream-card">
+                <b>Stream {idx+1}</b><br>
+                {stream["url"][:70]}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            colA, colB = st.columns([4,1])
 
             with colA:
 
                 if st.button(
-                    f"📡 Stream {idx+1}",
-                    key=f"stream_select_{idx}",
+                    "Select",
+                    key=f"select_{idx}",
                     use_container_width=True
                 ):
 
@@ -486,7 +475,7 @@ with left:
 
     else:
 
-        st.info("No streams")
+        st.info("No active streams")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -496,15 +485,13 @@ with left:
 
 with center:
 
-    st.markdown("""
-    <div class="panel">
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
 
     st.subheader("📝 Live Intelligence Feed")
 
     transcript_html = ""
 
-    for line in reversed(transcript_lines[-100:]):
+    for line in transcript_lines[-100:]:
 
         transcript_html += f"""
         <div class="transcript-line">
@@ -526,22 +513,13 @@ with center:
 
 with right:
 
-    # ALERTS
-
-    st.markdown("""
-    <div class="panel">
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
 
     st.subheader("🚨 Keyword Alerts")
 
-    alerts = transcript_data.get(
-        "alerts",
-        []
-    )
-
     if alerts:
 
-        for alert in reversed(alerts[-20:]):
+        for alert in alerts[-20:]:
 
             st.markdown(f"""
             <div class="alert-box">
@@ -557,22 +535,9 @@ with right:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # KEYWORDS
-
-    st.markdown("""
-    <div class="panel">
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
 
     st.subheader("🔑 Keywords")
-
-    keyword_data = backend_get(
-        "/keywords"
-    )
-
-    keywords = keyword_data.get(
-        "keywords",
-        []
-    )
 
     new_keyword = st.text_input(
         "Add Keyword"
@@ -596,17 +561,29 @@ with right:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    keyword_data = backend_get(
+        "/keywords"
+    )
+
+    keywords = keyword_data.get(
+        "keywords",
+        []
+    )
+
     for idx, kw in enumerate(keywords):
 
         c1, c2 = st.columns([4,1])
 
         with c1:
 
-            st.markdown(f"""
-            <span class="keyword-chip">
-            {kw}
-            </span>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <span class="keyword-chip">
+                {kw}
+                </span>
+                """,
+                unsafe_allow_html=True
+            )
 
         with c2:
 
@@ -627,20 +604,55 @@ with right:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# ANALYTICS
+# BOTTOM SECTION
 # =========================================================
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-analytics1, analytics2 = st.columns(2)
+bottom1, bottom2 = st.columns(2)
 
-with analytics1:
+# =========================================================
+# LOGS
+# =========================================================
 
-    st.markdown("""
-    <div class="panel">
-    """, unsafe_allow_html=True)
+with bottom1:
 
-    st.subheader("📈 Transcript Statistics")
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+
+    st.subheader("🧾 System Logs")
+
+    logs_data = backend_get("/logs")
+
+    logs = logs_data.get(
+        "logs",
+        []
+    )
+
+    if logs:
+
+        for log in logs[-20:]:
+
+            st.markdown(f"""
+            <div class="log-entry">
+            {log}
+            </div>
+            """, unsafe_allow_html=True)
+
+    else:
+
+        st.info("No logs available")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# =========================================================
+# ANALYTICS
+# =========================================================
+
+with bottom2:
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+
+    st.subheader("📊 Analytics")
 
     stats_df = pd.DataFrame({
 
@@ -666,48 +678,13 @@ with analytics1:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-with analytics2:
-
-    st.markdown("""
-    <div class="panel">
-    """, unsafe_allow_html=True)
-
-    st.subheader("🧾 System Logs")
-
-    logs_data = backend_get(
-        "/logs"
-    )
-
-    logs = logs_data.get(
-        "logs",
-        []
-    )
-
-    if logs:
-
-        for log in reversed(logs[-15:]):
-
-            st.markdown(f"""
-            <div class="log-entry">
-            {log}
-            </div>
-            """, unsafe_allow_html=True)
-
-    else:
-
-        st.info("No logs available")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
 # =========================================================
 # ARCHIVE
 # =========================================================
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-st.markdown("""
-<div class="panel">
-""", unsafe_allow_html=True)
+st.markdown('<div class="panel">', unsafe_allow_html=True)
 
 st.subheader("📁 Transcript Archive")
 
@@ -724,13 +701,13 @@ if files:
 
     for file in files:
 
-        a1, a2 = st.columns([8,1])
+        c1, c2 = st.columns([8,1])
 
-        with a1:
+        with c1:
 
             st.write(file)
 
-        with a2:
+        with c2:
 
             download_url = (
                 f"{BACKEND_URL}"
@@ -752,7 +729,7 @@ else:
 st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# FOOTER
+# REFRESH
 # =========================================================
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -761,5 +738,4 @@ if st.button(
     "🔄 Refresh Dashboard",
     use_container_width=True
 ):
-
     st.rerun()
