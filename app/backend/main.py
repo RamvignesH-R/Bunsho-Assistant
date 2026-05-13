@@ -1,14 +1,13 @@
-from fastapi import FastAPI
-from fastapi import BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from threading import Lock
-
+import threading
 import os
 
 from .processor import StreamProcessor
 from .utils import (
     log_message,
+    LOGS_DIR,
     TRANSCRIPTS_DIR
 )
 
@@ -17,8 +16,19 @@ from .utils import (
 # =========================================================
 
 app = FastAPI(
-    title="FlowScribe Backend",
-    version="3.0.0"
+    title="FlowScribe Backend"
+)
+
+# =========================================================
+# CORS
+# =========================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # =========================================================
@@ -27,7 +37,7 @@ app = FastAPI(
 
 processors = {}
 
-lock = Lock()
+lock = threading.Lock()
 
 GLOBAL_KEYWORDS = [
     "vote",
@@ -37,45 +47,24 @@ GLOBAL_KEYWORDS = [
     "adjourned"
 ]
 
-SYSTEM_LOGS = []
-
-# =========================================================
-# HELPERS
-# =========================================================
-
-def add_log(message):
-
-    SYSTEM_LOGS.append(message)
-
-    if len(SYSTEM_LOGS) > 500:
-        SYSTEM_LOGS.pop(0)
-
-    log_message(message)
-
 # =========================================================
 # MODELS
 # =========================================================
 
-class KeywordAction(BaseModel):
+class KeywordRequest(BaseModel):
+
     keyword: str
 
-# =========================================================
-# ROOT
-# =========================================================
+class StopStreamRequest(BaseModel):
 
-@app.get("/")
-def root():
-
-    return {
-        "app": "FlowScribe",
-        "status": "running"
-    }
+    url: str
 
 # =========================================================
 # HEALTH
 # =========================================================
 
 @app.get("/health")
+
 def health():
 
     return {
@@ -89,27 +78,29 @@ def health():
 # =========================================================
 
 @app.post("/start_stream")
+
 async def start_stream(
     url: str,
     background_tasks: BackgroundTasks,
     source_type: str = "youtube"
 ):
 
-    with lock:
+    try:
 
-        if url in processors:
+        with lock:
 
-            return {
-                "message": "Stream already active"
-            }
+            if url in processors:
 
-        try:
+                return {
+                    "message": "stream already running"
+                }
 
             processor = StreamProcessor(
-                url,
-                source_type
+                source_url=url,
+                source_type=source_type
             )
 
+            # sync keywords
             processor.keywords = GLOBAL_KEYWORDS.copy()
 
             processors[url] = processor
@@ -118,207 +109,245 @@ async def start_stream(
                 processor.start
             )
 
-            add_log(
+            log_message(
                 f"Started stream: {url}"
             )
 
-            return {
-                "message": "Stream started successfully"
-            }
+        return {
+            "message": "stream started"
+        }
 
-        except Exception as e:
+    except Exception as e:
 
-            add_log(
-                f"Failed starting stream: {e}"
-            )
+        log_message(
+            f"Failed to start stream: {e}"
+        )
 
-            return {
-                "message": f"Failed: {e}"
-            }
+        return {
+            "error": str(e)
+        }
 
 # =========================================================
 # STOP STREAM
 # =========================================================
 
 @app.post("/stop_stream")
-def stop_stream(url: str):
 
-    with lock:
+def stop_stream(request: StopStreamRequest):
 
-        if url not in processors:
+    try:
 
-            return {
-                "message": "Stream not found"
-            }
+        with lock:
 
-        try:
+            if request.url in processors:
 
-            processors[url].stop()
+                processors[request.url].stop()
 
-            del processors[url]
+                del processors[request.url]
 
-            add_log(
-                f"Stopped stream: {url}"
-            )
+                log_message(
+                    f"Stopped stream: {request.url}"
+                )
 
-            return {
-                "message": "Stream stopped"
-            }
+        return {
+            "message": "stream stopped"
+        }
 
-        except Exception as e:
+    except Exception as e:
 
-            add_log(
-                f"Stop stream error: {e}"
-            )
-
-            return {
-                "message": f"Error: {e}"
-            }
+        return {
+            "error": str(e)
+        }
 
 # =========================================================
 # STOP ALL
 # =========================================================
 
 @app.post("/stop_all")
+
 def stop_all():
 
-    with lock:
+    try:
 
-        count = 0
+        with lock:
 
-        for url in list(processors.keys()):
-
-            try:
+            for url in list(processors.keys()):
 
                 processors[url].stop()
 
                 del processors[url]
 
-                count += 1
-
-            except Exception as e:
-
-                add_log(
-                    f"Stop failed: {e}"
-                )
-
-        add_log(
-            f"Stopped {count} streams"
-        )
+            log_message(
+                "Stopped all streams"
+            )
 
         return {
-            "message": f"Stopped {count} streams"
+            "message": "all streams stopped"
+        }
+
+    except Exception as e:
+
+        return {
+            "error": str(e)
         }
 
 # =========================================================
-# TRANSCRIPT
+# STREAMS
+# =========================================================
+
+@app.get("/streams")
+
+def get_streams():
+
+    stream_list = []
+
+    for idx, (url, proc) in enumerate(processors.items()):
+
+        stream_list.append({
+            "id": idx + 1,
+            "url": url,
+            "type": proc.source_type,
+            "running": proc.running,
+            "transcript_count": len(proc.transcript_lines),
+            "alert_count": len(proc.alerts)
+        })
+
+    return {
+        "streams": stream_list
+    }
+
+# =========================================================
+# TRANSCRIPTS
 # =========================================================
 
 @app.get("/transcript")
-def transcript():
+
+def get_transcript():
 
     all_lines = []
-    alerts = []
+    all_alerts = []
 
     for proc in processors.values():
 
         all_lines.extend(
-            proc.transcript_lines[-100:]
+            proc.transcript_lines[-80:]
         )
 
-        alerts.extend(
-            proc.get_alerts()
+        all_alerts.extend(
+            proc.alerts[-20:]
         )
 
     return {
-        "transcript": all_lines[-100:],
-        "alerts": alerts[-20:]
+        "transcript": all_lines,
+        "alerts": all_alerts
     }
 
 # =========================================================
-# ACTIVE STREAMS
+# LOGS
 # =========================================================
 
-@app.get("/streams")
-def streams():
+@app.get("/logs")
 
-    data = []
+def get_logs():
 
-    for url, proc in processors.items():
+    log_file = os.path.join(
+        LOGS_DIR,
+        "system_log.txt"
+    )
 
-        data.append({
-            "url": url,
-            "type": proc.source_type,
-            "status": "running"
-        })
+    if not os.path.exists(log_file):
 
-    return {
-        "streams": data
-    }
+        return {
+            "logs": []
+        }
+
+    try:
+
+        with open(
+            log_file,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            lines = f.readlines()
+
+        return {
+            "logs": [
+                line.strip()
+                for line in lines[-100:]
+            ]
+        }
+
+    except Exception as e:
+
+        return {
+            "logs": [
+                f"Failed to load logs: {e}"
+            ]
+        }
 
 # =========================================================
 # KEYWORDS
 # =========================================================
 
 @app.get("/keywords")
-def keywords():
+
+def get_keywords():
 
     return {
         "keywords": GLOBAL_KEYWORDS
     }
 
+# =========================================================
+# ADD KEYWORD
+# =========================================================
+
 @app.post("/add_keyword")
-def add_keyword(action: KeywordAction):
 
-    keyword = action.keyword.lower().strip()
+def add_keyword(request: KeywordRequest):
 
-    if (
-        keyword
-        and keyword not in GLOBAL_KEYWORDS
-    ):
+    keyword = request.keyword.lower().strip()
+
+    if keyword not in GLOBAL_KEYWORDS:
 
         GLOBAL_KEYWORDS.append(keyword)
 
         for proc in processors.values():
+
             proc.add_keyword(keyword)
 
-        add_log(
+        log_message(
             f"Added keyword: {keyword}"
         )
 
     return {
-        "message": f"Added keyword: {keyword}"
+        "message": "keyword added"
     }
 
-@app.post("/remove_keyword")
-def remove_keyword(action: KeywordAction):
+# =========================================================
+# REMOVE KEYWORD
+# =========================================================
 
-    keyword = action.keyword.lower().strip()
+@app.post("/remove_keyword")
+
+def remove_keyword(request: KeywordRequest):
+
+    keyword = request.keyword.lower().strip()
 
     if keyword in GLOBAL_KEYWORDS:
 
         GLOBAL_KEYWORDS.remove(keyword)
 
         for proc in processors.values():
+
             proc.remove_keyword(keyword)
 
-        add_log(
+        log_message(
             f"Removed keyword: {keyword}"
         )
 
     return {
-        "message": f"Removed keyword: {keyword}"
-    }
-
-# =========================================================
-# SYSTEM LOGS
-# =========================================================
-
-@app.get("/logs")
-def logs():
-
-    return {
-        "logs": SYSTEM_LOGS[-200:]
+        "message": "keyword removed"
     }
 
 # =========================================================
@@ -326,42 +355,23 @@ def logs():
 # =========================================================
 
 @app.get("/transcript_files")
+
 def transcript_files():
 
-    files = []
+    try:
 
-    if os.path.exists(TRANSCRIPTS_DIR):
-
-        for file in os.listdir(TRANSCRIPTS_DIR):
-
-            if file.endswith(".txt"):
-
-                files.append(file)
-
-    return {
-        "files": sorted(files, reverse=True)
-    }
-
-# =========================================================
-# DOWNLOAD TRANSCRIPT
-# =========================================================
-
-@app.get("/download_transcript")
-def download_transcript(filename: str):
-
-    file_path = os.path.join(
-        TRANSCRIPTS_DIR,
-        filename
-    )
-
-    if not os.path.exists(file_path):
+        files = sorted(
+            os.listdir(TRANSCRIPTS_DIR),
+            reverse=True
+        )
 
         return {
-            "message": "File not found"
+            "files": files
         }
 
-    return FileResponse(
-        file_path,
-        media_type="text/plain",
-        filename=filename
-    )
+    except Exception as e:
+
+        return {
+            "files": [],
+            "error": str(e)
+        }
