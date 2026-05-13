@@ -37,24 +37,7 @@ log_message("Whisper model loaded successfully")
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-DIARIZATION_PIPELINE = None
 
-if HF_TOKEN:
-    try:
-        log_message("Loading pyannote diarization pipeline...")
-
-        DIARIZATION_PIPELINE = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            use_auth_token=HF_TOKEN
-        )
-
-        if DEVICE == "cuda":
-            DIARIZATION_PIPELINE.to(torch.device("cuda"))
-
-        log_message("Pyannote diarization loaded")
-
-    except Exception as e:
-        log_message(f"Failed to load diarization pipeline: {e}")
 
 # =========================================================
 # STREAM PROCESSOR
@@ -319,56 +302,7 @@ class StreamProcessor:
             if k != kw
         ]
 
-    # =====================================================
-    # DIARIZATION
-    # =====================================================
-
-    def _run_diarization(self):
-
-        if DIARIZATION_PIPELINE is None:
-
-            log_message("Diarization pipeline unavailable")
-
-            return
-
-        if len(self.full_audio) < 16000:
-
-            log_message("Not enough audio for diarization")
-
-            return
-
-        try:
-
-            temp_wav = os.path.join(
-                TRANSCRIPTS_DIR,
-                "temp_audio.wav"
-            )
-
-            sf.write(
-                temp_wav,
-                np.array(self.full_audio),
-                16000
-            )
-
-            diarization = DIARIZATION_PIPELINE(temp_wav)
-
-            speakers = set()
-
-            for _, _, speaker in diarization.itertracks(
-                yield_label=True
-            ):
-                speakers.add(speaker)
-
-            log_message(
-                f"Diarization complete: "
-                f"{len(speakers)} speakers detected"
-            )
-
-            os.remove(temp_wav)
-
-        except Exception as e:
-
-            log_message(f"Diarization failed: {e}")
+    
 
     # =====================================================
     # SAVE TRANSCRIPT
