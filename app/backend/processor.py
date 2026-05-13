@@ -45,7 +45,7 @@ if HF_TOKEN:
 
         DIARIZATION_PIPELINE = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
-            token=HF_TOKEN
+            use_auth_token=HF_TOKEN
         )
 
         if DEVICE == "cuda":
