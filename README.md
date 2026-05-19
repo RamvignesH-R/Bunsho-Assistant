@@ -23,7 +23,7 @@ app_port: 8000
 ## 🌟 Live Demo
 
 Don't want to deal with local setup and massive ML models? Use our free, cloud-hosted version!
-- **Frontend (UI):** [https://bunsho-assistant.vercel.app](https://bunsho-assistant.vercel.app) *(Replace with exact Vercel link if different)*
+- **Frontend (UI):** [https://bunsho-assistant-flax.vercel.app](https://bunsho-assistant-flax.vercel.app) 
 - **Backend API:** [https://ramvicky2004-bunsho-assistant-api.hf.space](https://ramvicky2004-bunsho-assistant-api.hf.space)
 
 ---
