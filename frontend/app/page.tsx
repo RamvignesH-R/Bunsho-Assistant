@@ -135,7 +135,7 @@ export default function Home() {
       {/* PRINTABLE REPORT - Visible ONLY during print */}
       <div className="hidden print:block w-full bg-white text-black p-10 font-sans">
         <h1 className="text-5xl font-extrabold mb-10 pb-4 border-b-4 border-gray-800">
-          BureaucracyAI Document Report
+          Bunsho Assistant Document Report
         </h1>
 
         {analysis ? (
