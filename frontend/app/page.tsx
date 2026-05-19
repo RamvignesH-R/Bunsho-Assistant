@@ -52,8 +52,9 @@ export default function Home() {
 
     try {
 
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
       const response = await fetch(
-        "http://127.0.0.1:8000/analyze",
+        `${apiUrl}/analyze`,
         {
           method: "POST",
           body: formData,

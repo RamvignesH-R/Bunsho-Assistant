@@ -20,9 +20,9 @@ ocr = PaddleOCR(
 # Tesseract Path
 # -----------------------------
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+# Allow Docker environment variable to override Windows path
+tess_cmd = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+pytesseract.pytesseract.tesseract_cmd = tess_cmd
 
 # -----------------------------
 # Image Preprocessing
