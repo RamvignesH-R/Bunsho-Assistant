@@ -14,7 +14,7 @@ app_port: 8000
   <img src="https://img.shields.io/badge/PaddleOCR-blue?style=for-the-badge&logo=python" />
 </div>
 
-<h1 align="center">🛡️ Bunsho Assistant (formerly BureaucracyAI)</h1>
+<h1 align="center">🛡️ Bunsho Assistant</h1>
 
 **Bunsho Assistant** is an advanced, AI-powered legal document analyzer designed specifically for processing complex Japanese bureaucratic and legal documents. It automatically extracts text via OCR, analyzes potential risks using Google Gemini's massive context window, and provides detailed, structured reports in both English and Japanese.
 
@@ -23,7 +23,7 @@ app_port: 8000
 ## 🌟 Live Demo
 
 Don't want to deal with local setup and massive ML models? Use our free, cloud-hosted version!
-- **Frontend (UI):** [https://bunsho-assistant-flax.vercel.app](https://bunsho-assistant-flax.vercel.app) 
+- **Frontend [APP LINK]:** [https://bunsho-assistant-flax.vercel.app](https://bunsho-assistant-flax.vercel.app) 
 - **Backend API:** [https://ramvicky2004-bunsho-assistant-api.hf.space](https://ramvicky2004-bunsho-assistant-api.hf.space)
 
 ---
